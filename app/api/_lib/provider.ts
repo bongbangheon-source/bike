@@ -1,6 +1,6 @@
 import "server-only";
 
-type ServerKey = "SEOUL_API_KEY" | "DATA_GO_KR_API_KEY" | "KAKAO_REST_API_KEY";
+type ServerKey = "DATA_GO_KR_API_KEY" | "KAKAO_REST_API_KEY";
 
 export function json(data: unknown, status = 200) {
   return Response.json(data, { status, headers: { "Cache-Control": "no-store" } });

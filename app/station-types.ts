@@ -4,11 +4,14 @@ export type Station = {
   lat: number;
   lng: number;
   bikes: number;
+  racks: number;
 };
 
 export type NearbyStations = {
   source: "seoul";
   scope: "sample" | "full";
   fetchedAt: string;
+  stale: boolean;
+  total: number;
   stations: (Station & { distanceMeters: number })[];
 };

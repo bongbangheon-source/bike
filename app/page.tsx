@@ -199,6 +199,7 @@ export default function Home() {
               {currentResult?.data && <> · 조회 완료 <DataTime value={currentResult.data.fetchedAt} /></>}
             </p>
             {currentResult?.data && <p className="station-status">대여 가능 대수의 측정시각은 원본 응답에서 제공하지 않습니다.</p>}
+            {currentResult?.data?.stale && <p className="station-status" role="status">마지막으로 받은 대여소 자료를 표시합니다. 대여 가능 대수는 현재와 다를 수 있습니다.</p>}
             <p className="station-status" role="status">
               {!currentResult ? "대여소를 불러오는 중입니다." :
                 currentResult.error ? dataErrorMessage(currentResult.error, "서울시 따릉이") :
@@ -211,7 +212,7 @@ export default function Home() {
               <li key={station.id}>
                 <button className="station-select" type="button" aria-pressed={chosenStation?.id === station.id}
                   onClick={() => setStationChoice({ station, attempt: (attempt ?? 0) + 1 })}>
-                  <span>{station.name}<small>직선거리 {formatDistance(station.distanceMeters)}</small></span>
+                  <span>{station.name}<small>직선거리 {formatDistance(station.distanceMeters)} · 거치대 {station.racks}개</small></span>
                   <strong>대여 가능 {station.bikes}대</strong>
                 </button>
               </li>

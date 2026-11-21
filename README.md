@@ -8,12 +8,12 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 ## 서버 API
 
-새 환경에서는 `.env.example`을 `.env`로 복사하고 발급받은 키를 입력합니다. 기존 `.env`가 있으면 필요한 항목만 확인하세요. Git에서는 빈 템플릿만 공유합니다. `SEOUL_API_KEY`, `DATA_GO_KR_API_KEY`, `KAKAO_REST_API_KEY`는 서버에서만 읽습니다. 지도 SDK는 별도 공개 키 `NEXT_PUBLIC_KAKAO_JS_KEY`를 사용합니다.
+새 환경에서는 `.env.example`을 `.env`로 복사하고 발급받은 키를 입력합니다. 기존 `.env`가 있으면 필요한 항목만 확인하세요. Git에서는 빈 템플릿만 공유합니다. `SEOUL_OPEN_API_KEY`, `DATA_GO_KR_API_KEY`, `KAKAO_REST_API_KEY`는 서버에서만 읽습니다. 지도 SDK는 별도 공개 키 `NEXT_PUBLIC_KAKAO_JS_KEY`를 사용합니다.
 
 | GET 요청 | 반환 데이터 | 필요한 설정 |
 | --- | --- | --- |
-| `/api/stations?lat=37.5285&lng=126.9335` | 출발지와의 직선거리순 대여소, 좌표, 대여 가능 수 | 공개 샘플은 별도 설정 없이 최대 5곳. 전체 대여소 중 가까운 10곳은 아래 HTTPS 설정 필요 |
-| `/api/stations?page=1&limit=100` | 따릉이 대여소 ID, 좌표, 대여 가능 수 | `SEOUL_API_KEY`, `SEOUL_API_HTTPS_ORIGIN` |
+| `/api/stations?lat=37.5285&lng=126.9335` | 출발지와의 직선거리순 대여소 최대 10곳, 좌표, 자전거 수, 거치대 수 | `SEOUL_OPEN_API_KEY`. 미설정 시 공개 샘플 5곳 |
+| `/api/stations?page=1&limit=100` | 전체 대여소 스냅샷의 페이지. `total`은 중복 제거 및 위치 검증을 마친 대여소 수 | `SEOUL_OPEN_API_KEY` |
 | `/api/weather?lat=37.5285&lng=126.9335` | 출발지 격자, 다음 예보의 기온·강수확률, 발표시각·예보시각 | `DATA_GO_KR_API_KEY` |
 | `/api/places?q=여의도` | 주소 검색 결과 또는 서울 중심 20km 이내 장소 검색 결과 | `KAKAO_REST_API_KEY` |
 | `/api/bicycle-route?startLat=37.5285&startLng=126.9335&endLat=37.5099&endLng=126.9942` | 자전거도로 우선 및 최단 경로의 좌표, 거리, 시간 또는 옵션별 오류 | `KAKAO_REST_API_KEY` |
@@ -23,7 +23,9 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 지도 아래 비교표에 두 경로의 거리, 예상 시간, 주변 사고다발지역 수를 표시합니다. 집계 수는 실제 주행 안전성의 판정으로 사용하지 않습니다. 따릉이·경로의 `fetchedAt`은 서버 조회 완료 시각입니다. 따릉이 원본 응답에는 대여 가능 대수의 측정시각이 없습니다. 사고 자료는 기준연도, 날씨는 발표시각과 예보시각을 화면에 표시합니다.
 
-서울시 따릉이 문서에는 HTTP 주소가 안내되어 있습니다. 기본 주변 검색은 서버에서 서울시 공개 `sample` 주소를 호출합니다. 인증키 없이 조회한 첫 5개 대여소만 정렬하고, 화면에 조회 범위를 표시합니다. 전체 검색을 사용하려면 `SEOUL_API_HTTPS_ORIGIN`에 `/{key}/json/bikeList/{first}/{last}/` 경로를 지원하고 인증키를 안전하게 처리하는 신뢰할 수 있는 HTTPS 서비스의 오리진을 설정하세요. 페이지 단위 조회도 이 설정이 필요합니다.
+따릉이는 [서울시 공식 `bikeList`](https://data.seoul.go.kr/dataList/OA-15493/A/1/datasetView.do)를 서버에서 `openapi.seoul.go.kr:8088`로 호출합니다. Vercel 운영 주소의 브라우저→앱 요청은 HTTPS로 암호화됩니다. 앱 서버→서울시 구간은 HTTP라 인증키와 응답이 전송 중 암호화되지 않습니다. 인증키는 서버 환경변수에서 읽고 앱 응답과 앱 로그에 기록하지 않습니다.
+
+서버 인스턴스마다 완성된 목록을 60초 동안 재사용합니다. 동시에 요청이 들어오면 한 번만 갱신합니다. 일시적 갱신 실패 시 마지막으로 받은 시각부터 15분 이내 스냅샷만 `stale: true`와 원래 `fetchedAt`으로 반환하며, 화면에 오래된 자료임을 표시합니다. 인증 실패·권한 오류는 그대로 반환합니다. 인스턴스가 재시작되면 메모리 캐시는 초기화됩니다.
 
 날씨 API는 출발지 위·경도를 [기상청 5km 격자](https://apihub.kma.go.kr/apiList.do?apiMov=%ED%86%B5%EB%B3%B4%EB%AC%B8&seqApi=10&seqApiSub=286)로 변환하고 기온과 강수확률이 함께 제공되는 가장 가까운 예정 예보시각을 표시합니다. 두 시각은 한국 표준시입니다. 공공데이터포털에서 [기상청 단기예보 조회서비스](https://www.data.go.kr/data/15084084/openapi.do) 활용 권한이 필요합니다. 설정을 바꿨다면 개발 서버를 다시 실행하세요.
 
@@ -62,8 +64,7 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 | `NEXT_PUBLIC_KAKAO_JS_KEY` | 카카오 JavaScript 키. 브라우저의 지도 SDK가 사용합니다. |
 | `KAKAO_REST_API_KEY` | 카카오 REST 키. 서버의 장소·자전거 경로 API가 사용합니다. |
 | `DATA_GO_KR_API_KEY` | 공공데이터포털 키. 기상청 단기예보와 한국도로교통공단 자전거 사고다발지역 API 활용 승인이 필요합니다. |
-| `SEOUL_API_KEY` | 따릉이 전체 조회용 서울시 서버 키. 아래 HTTPS 주소가 준비된 경우 설정합니다. |
-| `SEOUL_API_HTTPS_ORIGIN` | 따릉이 전체 조회를 위한 신뢰할 수 있는 HTTPS 서비스의 오리진. 미설정 시 공개 샘플 최대 5곳을 조회합니다. Vercel 앱 자체 주소를 넣는 용도가 아닙니다. |
+| `SEOUL_OPEN_API_KEY` | 따릉이 전체 조회용 서울 열린데이터광장 일반 인증키. 기존 `SEOUL_API_KEY`를 사용했다면 새 이름으로 등록합니다. 키 미설정 시 공개 샘플 최대 5곳을 조회합니다. |
 
 3. 배포 후 Vercel **Settings → Domains**에서 실제 운영 주소를 확인합니다. [카카오 개발자 콘솔](https://developers.kakao.com/docs/ko/app-setting/app)의 **앱 → 플랫폼 키 → JavaScript 키 → JavaScript SDK 도메인**에 해당 오리진(예: `https://your-project.vercel.app`)을 등록합니다. 프리뷰 지도도 필요하면 실제 프리뷰 오리진을 등록합니다.
 4. Vercel 환경변수를 추가하거나 수정했다면 다시 배포합니다. 특히 `NEXT_PUBLIC_KAKAO_JS_KEY`는 빌드 시 브라우저 코드에 포함됩니다. 배포 주소에서 지도 타일, 대여소, 두 자전거 경로, 사고다발지역, 날씨를 확인합니다.
