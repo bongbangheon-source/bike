@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import RideMap from "./ride-map";
 import DepartureWeather from "./departure-weather";
+import PlaceSearch, { type PlaceInput, type SearchPlace } from "./place-search";
 import DataTime from "./data-time";
 import { dataErrorMessage, loadData, type DataResult } from "./dashboard-data";
 import { places, type Point } from "./sample-data";
@@ -18,46 +19,14 @@ function formatDistance(meters: number) {
   return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
 }
 
-function searchPlaces(query: string) {
-  const normalized = query.replace(/\s/g, "").toLowerCase();
-  return places.map((place, index) => ({ ...place, index })).filter(({ name, area }) =>
-    `${name}${area}`.replace(/\s/g, "").toLowerCase().includes(normalized),
-  );
-}
-
-function PlaceSearch({ id, label, value, onChange }: {
-  id: string; label: string; value: string; onChange(value: string): void;
-}) {
-  const [open, setOpen] = useState(false);
-  const matches = searchPlaces(value);
-  return (
-    <div className="place-search" onBlur={(event) => {
-      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false);
-    }} onKeyDown={(event) => {
-      if (event.key === "Escape") setOpen(false);
-    }}>
-      <label htmlFor={id}><span className={id === "start" ? "start-dot" : "finish-dot"} />{label}</label>
-      <input id={id} autoComplete="off" value={value} placeholder="예시 장소 검색"
-        onFocus={() => setOpen(true)} onChange={(event) => { onChange(event.target.value); setOpen(true); }} />
-      {open && <div className="search-results" aria-label={`${label} 검색 결과`}>
-        {matches.map((place) => <button key={place.name} type="button" onClick={() => { onChange(place.name); setOpen(false); }}>
-          <strong>{place.name}</strong><small>{place.area}</small>
-        </button>)}
-        {!matches.length && <p>일치하는 예시 장소가 없습니다.</p>}
-      </div>}
-    </div>
-  );
-}
-
 export default function Home() {
-  const [start, setStart] = useState<string>(places[0].name);
-  const [finish, setFinish] = useState<string>(places[1].name);
-  const [selection, setSelection] = useState({ from: 0, to: 1 });
+  const [start, setStart] = useState<PlaceInput>({ text: places[0].name, place: places[0] });
+  const [finish, setFinish] = useState<PlaceInput>({ text: places[1].name, place: places[1] });
+  const [selection, setSelection] = useState<{ from: SearchPlace; to: SearchPlace }>({ from: places[0], to: places[1] });
   const [error, setError] = useState("");
   const [showStations, setShowStations] = useState(true);
   const [showIncidents, setShowIncidents] = useState(true);
-  const departure = places[selection.from];
-  const destination = places[selection.to];
+  const { from: departure, to: destination } = selection;
   const [stationChoice, setStationChoice] = useState<{ station: Station; attempt: number } | null>(null);
   const chosenStation = stationChoice?.station;
   const mapOrigin = useMemo<Point>(() => chosenStation ? [chosenStation.lat, chosenStation.lng] : departure.point, [chosenStation, departure]);
@@ -126,18 +95,15 @@ export default function Home() {
 
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    function find(query: string) {
-      if (!query.trim()) return undefined;
-      const matches = searchPlaces(query);
-      return matches.find((place) => place.name === query.trim()) ?? (matches.length === 1 ? matches[0] : undefined);
+    const { place: from } = start;
+    const { place: to } = finish;
+    if (!from || !to) {
+      setError(`${!from ? "출발지" : "목적지"}를 검색 결과에서 선택해 주세요.`);
+      document.getElementById(!from ? "start" : "finish")?.focus();
+      return;
     }
-    const from = find(start);
-    const to = find(finish);
-    if (!from || !to) { setError("검색 결과에서 출발지와 목적지를 선택해 주세요."); return; }
-    if (from.index !== selection.from) setStationChoice(null);
-    setStart(from.name);
-    setFinish(to.name);
-    setSelection({ from: from.index, to: to.index });
+    if (from.point[0] !== departure.point[0] || from.point[1] !== departure.point[1]) setStationChoice(null);
+    setSelection({ from, to });
     setError("");
   }
 
@@ -146,7 +112,6 @@ export default function Home() {
       <header className="topbar">
         <div className="topbar-inner">
           <a href="/" className="brand"><span className="brand-icon" aria-hidden="true">🚲︎</span><span>Safe Bike <em>Seoul</em></span></a>
-          <span className="top-label"><i /> 장소 검색 예시</span>
         </div>
       </header>
       <main className="dashboard">
@@ -160,9 +125,9 @@ export default function Home() {
               <h2><span className="section-icon" aria-hidden="true">↗</span> 경로 검색</h2>
               <form onSubmit={submit}>
                 <div className="fields">
-                  <PlaceSearch id="start" label="출발지" value={start} onChange={(value) => { setStart(value); setError(""); }} />
+                  <PlaceSearch id="start" label="출발지" input={start} onChange={(value) => { setStart(value); setError(""); }} />
                   <button className="swap" type="button" aria-label="출발지와 목적지 바꾸기" onClick={() => { setStart(finish); setFinish(start); setError(""); }}>⇅</button>
-                  <PlaceSearch id="finish" label="목적지" value={finish} onChange={(value) => { setFinish(value); setError(""); }} />
+                  <PlaceSearch id="finish" label="목적지" input={finish} onChange={(value) => { setFinish(value); setError(""); }} />
                 </div>
                 {error && <p className="form-error" role="alert">{error}</p>}
                 <button className="search-button" type="submit">출발지·목적지 적용 <span aria-hidden="true">→</span></button>
@@ -276,7 +241,7 @@ export default function Home() {
             )) : <p className="station-status">경로를 조회하면 주변 사고다발지역을 확인할 수 있습니다.</p>)}
           </section>
         </div>
-        <footer>표시 시각은 한국 표준시입니다. 출발지·목적지 검색은 예시 장소를 사용합니다.</footer>
+        <footer>표시 시각은 한국 표준시입니다. 주소와 장소 검색은 카카오맵 데이터를 사용합니다.</footer>
       </main>
     </>
   );

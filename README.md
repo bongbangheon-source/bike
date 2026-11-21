@@ -4,7 +4,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 
 카카오맵을 표시하려면 `.env`의 `NEXT_PUBLIC_KAKAO_JS_KEY`에 카카오 JavaScript 키를 설정하고, 카카오 개발자 콘솔에서 접속할 주소를 JavaScript SDK 도메인으로 등록합니다. 로컬에서는 `http://localhost:3000`을 사용합니다. `localhost`와 `127.0.0.1` 또는 포트가 다른 주소는 별도로 등록해야 합니다. 환경 변수를 바꾼 뒤 개발 서버를 다시 실행하세요. 키가 없거나 SDK를 불러오지 못하면 개략도가 표시됩니다.
 
-장소 검색은 예시 데이터입니다. 따릉이는 서울시 `bikeList`, 자전거 경로는 카카오맵 REST API를 사용합니다. 출발지와 목적지를 적용한 뒤 주변 대여소를 선택하면 두 경로를 조회합니다.
+출발지와 목적지는 카카오맵에서 도로명·지번 주소 또는 장소명으로 검색합니다. 검색 결과를 선택하고 적용한 뒤 따릉이 대여소를 선택하면 두 자전거 경로를 조회합니다. 따릉이는 서울시 `bikeList`, 자전거 경로는 카카오맵 REST API를 사용합니다.
 
 ## 서버 API
 
@@ -15,7 +15,7 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 | `/api/stations?lat=37.5285&lng=126.9335` | 출발지와의 직선거리순 대여소, 좌표, 대여 가능 수 | 공개 샘플은 별도 설정 없이 최대 5곳. 전체 대여소 중 가까운 10곳은 아래 HTTPS 설정 필요 |
 | `/api/stations?page=1&limit=100` | 따릉이 대여소 ID, 좌표, 대여 가능 수 | `SEOUL_API_KEY`, `SEOUL_API_HTTPS_ORIGIN` |
 | `/api/weather?lat=37.5285&lng=126.9335` | 출발지 격자, 다음 예보의 기온·강수확률, 발표시각·예보시각 | `DATA_GO_KR_API_KEY` |
-| `/api/places?q=여의도` | 서울 중심 20km 이내 장소명, 주소, 좌표 | `KAKAO_REST_API_KEY` |
+| `/api/places?q=여의도` | 주소 검색 결과 또는 서울 중심 20km 이내 장소 검색 결과 | `KAKAO_REST_API_KEY` |
 | `/api/bicycle-route?startLat=37.5285&startLng=126.9335&endLat=37.5099&endLng=126.9942` | 자전거도로 우선 및 최단 경로의 좌표, 거리, 시간 또는 옵션별 오류 | `KAKAO_REST_API_KEY` |
 | `/api/accident-hotspots` | 서울 자전거 사고다발지역의 기준연도, 중심점, 사고건수 | `DATA_GO_KR_API_KEY` |
 
