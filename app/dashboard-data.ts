@@ -1,3 +1,7 @@
+export function formatDistance(meters: number) {
+  return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
+}
+
 export type DataResult<T> = { data: T; error?: never } | { data?: never; error: string };
 
 export async function loadData<T>(url: string, signal: AbortSignal): Promise<DataResult<T>> {

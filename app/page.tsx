@@ -5,19 +5,16 @@ import RideMap from "./ride-map";
 import DepartureWeather from "./departure-weather";
 import PlaceSearch, { type PlaceInput, type SearchPlace } from "./place-search";
 import DataTime from "./data-time";
-import { dataErrorMessage, loadData, type DataResult } from "./dashboard-data";
+import StationPicker, { stationDisplayLimit } from "./station-picker";
+import { dataErrorMessage, formatDistance, loadData, type DataResult } from "./dashboard-data";
 import { places, type Point } from "./sample-data";
 import { hotspotsAlongRoute, nearRouteMeters, type AccidentHotspots, type Hotspot } from "./accident-hotspots";
-import { bicycleErrorMessage, bicycleStyles, type BicycleResult, type BicycleRoute } from "./bicycle-routes";
+import { bicycleErrorMessage, bicycleStyles, type BicycleMode, type BicycleResult, type BicycleRoute } from "./bicycle-routes";
 import type { NearbyStations, Station } from "./station-types";
 
 const emptyStations: NearbyStations["stations"] = [];
 const emptyHotspots: Hotspot[] = [];
 const routeDistance = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 3 });
-
-function formatDistance(meters: number) {
-  return meters < 1000 ? `${meters} m` : `${(meters / 1000).toFixed(1)} km`;
-}
 
 export default function Home() {
   const [start, setStart] = useState<PlaceInput>({ text: places[0].name, place: places[0] });
@@ -26,6 +23,12 @@ export default function Home() {
   const [error, setError] = useState("");
   const [showStations, setShowStations] = useState(true);
   const [showIncidents, setShowIncidents] = useState(true);
+  const [stationRadius, setStationRadius] = useState(2000);
+  const [stationQuery, setStationQuery] = useState("");
+  const [availableOnly, setAvailableOnly] = useState(false);
+  const [mapMode, setMapMode] = useState<BicycleMode | "all">("all");
+  const [hotspotRadius, setHotspotRadius] = useState(nearRouteMeters);
+  const [nearOnly, setNearOnly] = useState(false);
   const { from: departure, to: destination } = selection;
   const [stationChoice, setStationChoice] = useState<{ station: Station; attempt: number } | null>(null);
   const chosenStation = stationChoice?.station;
@@ -38,22 +41,45 @@ export default function Home() {
   } | null>(null);
   const currentRoute = routeResult?.url === bicycleUrl && routeResult.attempt === attempt ? routeResult : null;
   const routes = useMemo(() => currentRoute?.results?.filter((result): result is BicycleRoute => !("error" in result)) ?? [], [currentRoute]);
+  const distanceGap = routes.length === 2 ? Math.abs(routes[0].distanceMeters - routes[1].distanceMeters) : null;
+  const shorterRoute = routes.length === 2 ? routes.reduce((shorter, route) => route.distanceMeters < shorter.distanceMeters ? route : shorter) : null;
+  const visibleMode = routes.some((route) => route.mode === mapMode) ? mapMode : "all";
+  const visibleRoutes = useMemo(() => visibleMode === "all" ? routes : routes.filter((route) => route.mode === visibleMode), [routes, visibleMode]);
   const [hotspotResult, setHotspotResult] = useState<DataResult<AccidentHotspots> | null>(null);
   const hotspotData = hotspotResult?.data;
   const hotspots = hotspotData?.hotspots ?? emptyHotspots;
   const routeHotspots = useMemo(() => routes.map((route) => ({
-    mode: route.mode, matches: hotspotsAlongRoute(hotspots, route),
-  })), [hotspots, routes]);
+    mode: route.mode, matches: hotspotsAlongRoute(hotspots, route, hotspotRadius),
+  })), [hotspots, routes, hotspotRadius]);
   const highlightedHotspots = useMemo(() => new Set(
-    routeHotspots.flatMap(({ matches }) => matches.map(({ id }) => id)),
-  ), [routeHotspots]);
-  const stationUrl = `/api/stations?lat=${departure.point[0]}&lng=${departure.point[1]}`;
+    routeHotspots.filter(({ mode }) => visibleMode === "all" || mode === visibleMode)
+      .flatMap(({ matches }) => matches.map(({ id }) => id)),
+  ), [routeHotspots, visibleMode]);
+  const visibleHotspots = useMemo(() => !showIncidents ? emptyHotspots :
+    nearOnly && visibleRoutes.length ? hotspots.filter(({ id }) => highlightedHotspots.has(id)) : hotspots,
+  [showIncidents, nearOnly, visibleRoutes, hotspots, highlightedHotspots]);
+  const stationUrl = `/api/stations?lat=${departure.point[0]}&lng=${departure.point[1]}&radius=${stationRadius}`;
   const [refresh, setRefresh] = useState(0);
   const [stationResult, setStationResult] = useState<{
     url: string; refresh: number;
   } & DataResult<NearbyStations> | null>(null);
-  const currentResult = stationResult?.url === stationUrl && stationResult.refresh === refresh ? stationResult : null;
+  const currentResult = stationResult?.url === stationUrl ? stationResult : null;
+  const stationRefreshing = !currentResult || currentResult.refresh !== refresh;
   const stations = currentResult?.data?.stations ?? emptyStations;
+  const filteredStations = useMemo(() => {
+    const query = stationQuery.trim().toLowerCase().replace(/\s+/g, "");
+    return stations.filter(({ name, id, bikes }) =>
+      (!availableOnly || bikes > 0) && `${name}${id}`.toLowerCase().replace(/\s+/g, "").includes(query),
+    );
+  }, [stations, stationQuery, availableOnly]);
+  const mapStations = useMemo(() => showStations ? filteredStations.slice(0, stationDisplayLimit) : emptyStations, [showStations, filteredStations]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === "visible") setRefresh((count) => count + 1);
+    }, 60_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -102,7 +128,10 @@ export default function Home() {
       document.getElementById(!from ? "start" : "finish")?.focus();
       return;
     }
-    if (from.point[0] !== departure.point[0] || from.point[1] !== departure.point[1]) setStationChoice(null);
+    if (from.point[0] !== departure.point[0] || from.point[1] !== departure.point[1]) {
+      setStationChoice(null);
+      setStationQuery("");
+    }
     setSelection({ from, to });
     setError("");
   }
@@ -111,16 +140,17 @@ export default function Home() {
     <>
       <header className="topbar">
         <div className="topbar-inner">
-          <a href="/" className="brand"><span className="brand-icon" aria-hidden="true">🚲︎</span><span>Safe Bike <em>Seoul</em></span></a>
+          <a href="/" className="brand"><span className="brand-icon" aria-hidden="true">↗</span><span>Safe Bike <em>Seoul</em></span></a>
+          <nav className="top-nav" aria-label="화면 이동"><a href="#map-title">지도</a><a href="#comparison-title">경로 비교</a><a href="#weather-title">예보</a></nav>
         </div>
       </header>
       <main className="dashboard">
         <section className="intro" aria-labelledby="page-title">
-          <h1 id="page-title">서울 자전거 지도</h1>
-          <p className="intro-copy">따릉이 대여소를 선택하고 두 자전거 경로의 거리와 주변 사고 기록을 비교하세요.</p>
+          <h1 id="page-title">서울 자전거 길찾기</h1>
+          <p className="intro-copy">출발지 주변 따릉이를 고르고, 두 경로의 거리와 주변 사고 기록을 비교하세요.</p>
         </section>
         <div className="workspace">
-          <aside className="sidebar" aria-label="경로 검색 및 날씨">
+          <aside className="sidebar" aria-label="장소 및 대여소 선택">
             <section className="panel planner">
               <h2><span className="section-icon" aria-hidden="true">↗</span> 경로 검색</h2>
               <form onSubmit={submit}>
@@ -133,7 +163,12 @@ export default function Home() {
                 <button className="search-button" type="submit">출발지·목적지 적용 <span aria-hidden="true">→</span></button>
               </form>
             </section>
-            <DepartureWeather name={departure.name} point={departure.point} />
+            <StationPicker departure={departure.name} result={currentResult ?? undefined} refreshing={stationRefreshing}
+              radius={stationRadius} onRadius={setStationRadius} query={stationQuery} onQuery={setStationQuery}
+              available={availableOnly} onAvailable={setAvailableOnly} matches={filteredStations}
+              selectedId={chosenStation?.id}
+              onSelect={(station) => setStationChoice({ station, attempt: (attempt ?? 0) + 1 })}
+              onRefresh={() => setRefresh((count) => count + 1)} />
           </aside>
           <section className="panel map-panel" aria-labelledby="map-title">
             <div className="map-header">
@@ -143,9 +178,14 @@ export default function Home() {
                 <button type="button" aria-pressed={showIncidents} onClick={() => setShowIncidents(!showIncidents)}><i className="incident-dot" /> 사고다발지역</button>
               </div>
             </div>
-            <RideMap routes={routes} origin={mapOrigin}
-              destination={destination.point} stations={showStations ? stations : emptyStations}
-              hotspots={showIncidents ? hotspots : emptyHotspots} highlightedHotspots={highlightedHotspots} />
+            {routes.length > 0 && <div className="map-modes" role="group" aria-label="지도 경로 선택">
+              <button type="button" className="quiet-button" aria-pressed={visibleMode === "all"} onClick={() => setMapMode("all")}>모든 경로</button>
+              {routes.map(({ mode }) => <button key={mode} type="button" className="quiet-button" aria-pressed={visibleMode === mode}
+                onClick={() => setMapMode(mode)}><i className={`route-line ${mode}`} /> {bicycleStyles[mode].label}</button>)}
+            </div>}
+            <RideMap routes={visibleRoutes} origin={mapOrigin}
+              destination={destination.point} stations={mapStations}
+              hotspots={visibleHotspots} highlightedHotspots={highlightedHotspots} />
             <div className="legend">
               <span><i className="route-line BIKE_ONLY" /> 자전거도로 우선</span>
               <span><i className="route-line SHORTEST" /> 최단 경로</span>
@@ -154,7 +194,14 @@ export default function Home() {
               {highlightedHotspots.size > 0 && <span><i className="incident-dot near" /> 경로 주변 사고다발지역</span>}
             </div>
             <section className="route-comparison" aria-labelledby="comparison-title" aria-live="polite">
-              <h2 id="comparison-title">경로 비교</h2>
+              <div className="section-heading">
+                <h2 id="comparison-title">경로 비교</h2>
+                <label className="compact-field">사고 집계 반경
+                  <select value={hotspotRadius} onChange={(event) => setHotspotRadius(Number(event.target.value))}>
+                    {[100, 200, 300, 500, 1000].map((radius) => <option key={radius} value={radius}>{formatDistance(radius)}</option>)}
+                  </select>
+                </label>
+              </div>
               <p className="data-meta">
                 경로 출처 <a href="https://developers.kakao.com/docs/ko/kakaomap/rest-api#bicycle-routing">카카오맵</a>
                 {currentRoute?.fetchedAt && routes.length > 0 && <> · 조회 완료 <DataTime value={currentRoute.fetchedAt} /></>}
@@ -180,48 +227,27 @@ export default function Home() {
                     </tr>;
                   })}</tbody>
                 </table>}
+                {distanceGap !== null && shorterRoute && <p className="route-insight">
+                  {distanceGap === 0 ? "두 경로의 거리가 같습니다." : <>거리 차이 <strong>{formatDistance(distanceGap)}</strong> · {bicycleStyles[shorterRoute.mode].label} 쪽이 더 짧습니다.</>}
+                </p>}
               </> : <p className="station-status">출발지 주변 목록에서 따릉이 대여소를 선택하세요.</p>}
               <p className="comparison-note">
-                {hotspotData ? `${hotspotData.year}년 ` : ""}과거 집계에서 경로선과 다발지역 중심점이 {nearRouteMeters}m 이내인 곳을 셉니다.
+                {hotspotData ? `${hotspotData.year}년 ` : ""}과거 집계에서 경로선과 다발지역 중심점이 {formatDistance(hotspotRadius)} 이내인 곳을 셉니다.
                 {" "}이 수치만으로 실제 주행 안전성을 판단할 수 없습니다.
               </p>
             </section>
           </section>
         </div>
         <div className="info-grid">
+          <DepartureWeather name={departure.name} point={departure.point} />
           <section className="panel info-card">
-            <div className="station-heading">
-              <h2><span className="section-icon" aria-hidden="true">◎</span> 출발지 주변 따릉이</h2>
-              <button type="button" onClick={() => setRefresh((count) => count + 1)} disabled={!currentResult}>새로고침</button>
+            <div className="section-heading">
+              <h2><span className="section-icon incident-icon" aria-hidden="true">!</span> 자전거 사고다발지역
+                {hotspotData && <span className="badge">{hotspotData.year}년</span>}
+              </h2>
+              <label className="check-option"><input type="checkbox" checked={nearOnly} disabled={!routes.length || !showIncidents}
+                onChange={(event) => setNearOnly(event.target.checked)} /> 지도에 경로 주변만</label>
             </div>
-            <p className="data-meta">
-              출처 <a href="https://data.seoul.go.kr/dataList/OA-15493/A/1/datasetView.do">서울 열린데이터광장</a>
-              {currentResult?.data && <> · 조회 완료 <DataTime value={currentResult.data.fetchedAt} /></>}
-            </p>
-            {currentResult?.data && <p className="station-status">대여 가능 대수의 측정시각은 원본 응답에서 제공하지 않습니다.</p>}
-            {currentResult?.data?.stale && <p className="station-status" role="status">마지막으로 받은 대여소 자료를 표시합니다. 대여 가능 대수는 현재와 다를 수 있습니다.</p>}
-            <p className="station-status" role="status">
-              {!currentResult ? "대여소를 불러오는 중입니다." :
-                currentResult.error ? dataErrorMessage(currentResult.error, "서울시 따릉이") :
-                !currentResult.data ? "조회된 대여소가 없습니다." :
-                currentResult.data.scope === "sample" ? "서울시 공개 샘플 최대 5곳 · 조회된 대여소 안에서 거리순" :
-                `${departure.name} 기준 · 가까운 대여소 최대 10곳`}
-            </p>
-            {currentResult?.data && !stations.length && <p className="station-status">조회된 대여소가 없습니다.</p>}
-            {!!stations.length && <ul>{stations.map((station) => (
-              <li key={station.id}>
-                <button className="station-select" type="button" aria-pressed={chosenStation?.id === station.id}
-                  onClick={() => setStationChoice({ station, attempt: (attempt ?? 0) + 1 })}>
-                  <span>{station.name}<small>직선거리 {formatDistance(station.distanceMeters)} · 거치대 {station.racks}개</small></span>
-                  <strong>대여 가능 {station.bikes}대</strong>
-                </button>
-              </li>
-            ))}</ul>}
-          </section>
-          <section className="panel info-card">
-            <h2><span className="section-icon incident-icon" aria-hidden="true">!</span> 자전거 사고다발지역
-              {hotspotData && <span className="badge">{hotspotData.year}년 기준</span>}
-            </h2>
             <p className="data-meta">출처 <a href="https://www.data.go.kr/data/15056681/openapi.do">한국도로교통공단</a></p>
             <p className="station-status">과거 사고를 집계한 지역입니다. 실시간 사고·도로 상황은 반영되지 않습니다.</p>
             <p className="station-status" role="status">

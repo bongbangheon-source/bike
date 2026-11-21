@@ -199,10 +199,14 @@ export default function RideMap({ routes, origin, destination, stations, hotspot
   const [engine, setEngine] = useState<{ sdk: Maps; map: MapInstance } | null>(null);
   const [failed, setFailed] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const bounds = useMemo<Point[]>(() => [
-    origin, destination, ...routes.flatMap((route) => route.segments.flat()),
-    ...stations.map(({ lat, lng }) => [lat, lng] as const),
-  ], [origin, destination, routes, stations]);
+  const [south, west, north, east] = useMemo(() => {
+    const points = [origin, destination, ...routes.flatMap((route) => route.segments.flat()),
+      ...stations.map(({ lat, lng }) => [lat, lng] as const)];
+    return points.reduce(([south, west, north, east], [lat, lng]) =>
+      [Math.min(south, lat), Math.min(west, lng), Math.max(north, lat), Math.max(east, lng)],
+    [origin[0], origin[1], origin[0], origin[1]]);
+  }, [origin, destination, routes, stations]);
+  const bounds = useMemo<Point[]>(() => [[south, west], [north, east]], [south, west, north, east]);
   const pins = useMemo<Pin[]>(() => [
     ...hotspots.map(({ id, point, name, crashes }): Pin => ({
       point, kind: highlightedHotspots.has(id) ? "incident near" : "incident",

@@ -6,6 +6,7 @@ export type DepartureForecast = {
   forecastAt: string;
   temperatureC: number;
   precipitationProbability: number;
+  windSpeedMps?: number;
 };
 
 export function forecastGrid([lat, lng]: Point) {

@@ -30,9 +30,9 @@ async function forecastItems(serviceKey: string, grid: DepartureForecast["grid"]
 }
 
 function nextForecast(items: ForecastItem[], now: number, grid: DepartureForecast["grid"]): DepartureForecast | undefined {
-  const byTime = new Map<string, { forecastAt: string; issuedAt: string; tmp?: string; pop?: string }>();
+  const byTime = new Map<string, { forecastAt: string; issuedAt: string; tmp?: string; pop?: string; wind?: string }>();
   for (const item of items) {
-    if (item.category !== "TMP" && item.category !== "POP") continue;
+    if (item.category !== "TMP" && item.category !== "POP" && item.category !== "WSD") continue;
     const forecastAt = forecastTimestamp(item.fcstDate, item.fcstTime);
     const validAt = Date.parse(forecastAt);
     if (!Number.isFinite(validAt) || validAt < now) continue;
@@ -41,7 +41,8 @@ function nextForecast(items: ForecastItem[], now: number, grid: DepartureForecas
     const key = `${forecastAt}/${issuedAt}`;
     const entry = byTime.get(key) ?? { forecastAt, issuedAt };
     if (item.category === "TMP") entry.tmp = item.fcstValue;
-    else entry.pop = item.fcstValue;
+    else if (item.category === "POP") entry.pop = item.fcstValue;
+    else entry.wind = item.fcstValue;
     byTime.set(key, entry);
   }
 
@@ -51,7 +52,9 @@ function nextForecast(items: ForecastItem[], now: number, grid: DepartureForecas
   const temperatureC = numberValue(earliest.tmp);
   const precipitationProbability = numberValue(earliest.pop);
   if (precipitationProbability < 0 || precipitationProbability > 100) throw new Error("Invalid rain probability");
-  return { grid, issuedAt: earliest.issuedAt, forecastAt: earliest.forecastAt, temperatureC, precipitationProbability };
+  const windSpeed = Number(earliest.wind?.trim() || NaN);
+  const windSpeedMps = Number.isFinite(windSpeed) && windSpeed >= 0 ? windSpeed : undefined;
+  return { grid, issuedAt: earliest.issuedAt, forecastAt: earliest.forecastAt, temperatureC, precipitationProbability, windSpeedMps };
 }
 
 export function GET(request: Request) {

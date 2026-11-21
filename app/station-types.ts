@@ -1,3 +1,5 @@
+export const stationSearchRadii = [500, 1000, 2000, 5000] as const;
+
 export type Station = {
   id: string;
   name: string;

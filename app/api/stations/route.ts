@@ -1,16 +1,17 @@
-﻿import type { NearbyStations, Station } from "../../station-types";
+import { stationSearchRadii, type NearbyStations, type Station } from "../../station-types";
 import { json, providerResponse } from "../_lib/provider";
 import { loadStations } from "../_lib/seoul-stations";
 
-function nearby(stations: Station[], lat: number, lng: number): NearbyStations["stations"] {
+function nearby(stations: Station[], lat: number, lng: number, radius: number | null): NearbyStations["stations"] {
   const radians = Math.PI / 180;
-  return stations.map((station) => {
+  const nearest = stations.map((station) => {
     const a = Math.sin((station.lat - lat) * radians / 2) ** 2 +
       Math.cos(lat * radians) * Math.cos(station.lat * radians) *
       Math.sin((station.lng - lng) * radians / 2) ** 2;
     return { ...station, distanceMeters: 12_742_000 * Math.asin(Math.sqrt(Math.min(1, a))) };
-  }).sort((a, b) => a.distanceMeters - b.distanceMeters)
-    .slice(0, 10)
+  }).filter((station) => radius === null || station.distanceMeters <= radius)
+    .sort((a, b) => a.distanceMeters - b.distanceMeters);
+  return (radius === null ? nearest.slice(0, 10) : nearest)
     .map((station) => ({ ...station, distanceMeters: Math.round(station.distanceMeters) }));
 }
 
@@ -24,6 +25,11 @@ export function GET(request: Request) {
   if (searchNearby && (!latParam?.trim() || !lngParam?.trim() ||
       !Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)) {
     return json({ error: "INVALID_COORDINATES" }, 400);
+  }
+  const radiusParam = params.get("radius");
+  const radius = radiusParam === null ? null : Number(radiusParam);
+  if (radius !== null && (!searchNearby || !stationSearchRadii.some((value) => value === radius))) {
+    return json({ error: "INVALID_RADIUS" }, 400);
   }
 
   const page = Number(params.get("page") ?? 1);
@@ -40,7 +46,7 @@ export function GET(request: Request) {
   return providerResponse(async () => {
     const { stations, fetchedAt, stale } = await loadStations(scope, key || "sample");
     const meta = { source: "seoul", scope, fetchedAt, stale, total: stations.length };
-    if (searchNearby) return { ...meta, stations: nearby(stations, lat, lng) };
+    if (searchNearby) return { ...meta, stations: nearby(stations, lat, lng, radius) };
 
     const first = (page - 1) * limit;
     return { ...meta, page, limit, stations: stations.slice(first, first + limit) };

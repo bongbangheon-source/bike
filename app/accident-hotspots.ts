@@ -36,8 +36,8 @@ function distanceToRoute([lat, lng]: Point, route: BicycleRoute) {
   return Math.sqrt(closestSquared);
 }
 
-export function hotspotsAlongRoute(hotspots: Hotspot[], route: BicycleRoute) {
+export function hotspotsAlongRoute(hotspots: Hotspot[], route: BicycleRoute, radius = nearRouteMeters) {
   return hotspots.map((hotspot) => ({ ...hotspot, distance: distanceToRoute(hotspot.point, route) }))
-    .filter(({ distance }) => distance <= nearRouteMeters)
+    .filter(({ distance }) => distance <= radius)
     .sort((a, b) => a.distance - b.distance);
 }

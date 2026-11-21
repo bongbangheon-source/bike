@@ -30,7 +30,9 @@ export default function DepartureWeather({ name, point }: { name: string; point:
           <dl className="weather-values">
             <div><dt>기온</dt><dd>{forecast.temperatureC}°C</dd></div>
             <div><dt>강수확률</dt><dd>{forecast.precipitationProbability}%</dd></div>
+            <div><dt>풍속 (m/s)</dt><dd>{forecast.windSpeedMps ?? "—"}</dd></div>
           </dl>
+          <p className="data-meta">기상청 5km 격자 ({forecast.grid.nx}, {forecast.grid.ny}) · 예보 기준</p>
           <dl>
             <div><dt>발표시각</dt><dd><DataTime value={forecast.issuedAt} /></dd></div>
             <div><dt>예보시각</dt><dd><DataTime value={forecast.forecastAt} /></dd></div>

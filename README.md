@@ -13,13 +13,14 @@ This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-
 | GET 요청 | 반환 데이터 | 필요한 설정 |
 | --- | --- | --- |
 | `/api/stations?lat=37.5285&lng=126.9335` | 출발지와의 직선거리순 대여소 최대 10곳, 좌표, 자전거 수, 거치대 수 | `SEOUL_OPEN_API_KEY`. 미설정 시 공개 샘플 5곳 |
+| `/api/stations?lat=37.5285&lng=126.9335&radius=2000` | 지정 반경 안의 대여소를 직선거리순으로 반환. 반경 단위는 m이며 500·1000·2000·5000 선택 | `SEOUL_OPEN_API_KEY`. 화면에서는 이름·번호와 대여 가능 여부로 걸러 가까운 30곳을 표시 |
 | `/api/stations?page=1&limit=100` | 전체 대여소 스냅샷의 페이지. `total`은 중복 제거 및 위치 검증을 마친 대여소 수 | `SEOUL_OPEN_API_KEY` |
 | `/api/weather?lat=37.5285&lng=126.9335` | 출발지 격자, 다음 예보의 기온·강수확률, 발표시각·예보시각 | `DATA_GO_KR_API_KEY` |
 | `/api/places?q=여의도` | 주소 검색 결과 또는 서울 중심 20km 이내 장소 검색 결과 | `KAKAO_REST_API_KEY` |
 | `/api/bicycle-route?startLat=37.5285&startLng=126.9335&endLat=37.5099&endLng=126.9942` | 자전거도로 우선 및 최단 경로의 좌표, 거리, 시간 또는 옵션별 오류 | `KAKAO_REST_API_KEY` |
 | `/api/accident-hotspots` | 서울 자전거 사고다발지역의 기준연도, 중심점, 사고건수 | `DATA_GO_KR_API_KEY` |
 
-사고다발지역은 [한국도로교통공단](https://opendata.koroad.or.kr/api/selectBicycleDataSet.do)의 최신 공개 기준연도인 2025년 집계입니다. 공공데이터포털에서 [자전거 교통사고 다발지역 API](https://www.data.go.kr/data/15056681/openapi.do) 활용 권한이 필요합니다. 경로를 조회하면 각 경로선에서 중심점까지 200m 이내인 지역을 표시합니다. 이 거리는 앱의 표시 기준이며, 데이터는 과거 사고 집계입니다.
+사고다발지역은 [한국도로교통공단](https://opendata.koroad.or.kr/api/selectBicycleDataSet.do)의 최신 공개 기준연도인 2025년 집계입니다. 공공데이터포털에서 [자전거 교통사고 다발지역 API](https://www.data.go.kr/data/15056681/openapi.do) 활용 권한이 필요합니다. 경로선에서 중심점까지의 직선거리로 비교하며, 화면에서 기준 거리를 바꿀 수 있습니다. 기본값은 200m입니다.
 
 지도 아래 비교표에 두 경로의 거리, 예상 시간, 주변 사고다발지역 수를 표시합니다. 집계 수는 실제 주행 안전성의 판정으로 사용하지 않습니다. 따릉이·경로의 `fetchedAt`은 서버 조회 완료 시각입니다. 따릉이 원본 응답에는 대여 가능 대수의 측정시각이 없습니다. 사고 자료는 기준연도, 날씨는 발표시각과 예보시각을 화면에 표시합니다.
 
