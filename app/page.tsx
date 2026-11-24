@@ -15,6 +15,7 @@ import type { NearbyStations, Station } from "./station-types";
 const emptyStations: NearbyStations["stations"] = [];
 const emptyHotspots: Hotspot[] = [];
 const routeDistance = new Intl.NumberFormat("ko-KR", { maximumFractionDigits: 3 });
+const minutes = (seconds: number) => Math.max(1, Math.ceil(seconds / 60));
 
 export default function Home() {
   const [start, setStart] = useState<PlaceInput>({ text: places[0].name, place: places[0] });
@@ -42,7 +43,7 @@ export default function Home() {
   const currentRoute = routeResult?.url === bicycleUrl && routeResult.attempt === attempt ? routeResult : null;
   const routes = useMemo(() => currentRoute?.results?.filter((result): result is BicycleRoute => !("error" in result)) ?? [], [currentRoute]);
   const distanceGap = routes.length === 2 ? Math.abs(routes[0].distanceMeters - routes[1].distanceMeters) : null;
-  const shorterRoute = routes.length === 2 ? routes.reduce((shorter, route) => route.distanceMeters < shorter.distanceMeters ? route : shorter) : null;
+  const timeGap = routes.length === 2 ? Math.abs(minutes(routes[0].durationSeconds) - minutes(routes[1].durationSeconds)) : null;
   const visibleMode = routes.some((route) => route.mode === mapMode) ? mapMode : "all";
   const visibleRoutes = useMemo(() => visibleMode === "all" ? routes : routes.filter((route) => route.mode === visibleMode), [routes, visibleMode]);
   const [hotspotResult, setHotspotResult] = useState<DataResult<AccidentHotspots> | null>(null);
@@ -178,6 +179,25 @@ export default function Home() {
                 <button type="button" aria-pressed={showIncidents} onClick={() => setShowIncidents(!showIncidents)}><i className="incident-dot" /> 사고다발지역</button>
               </div>
             </div>
+            {chosenStation && <div className="route-numbers" aria-label="두 경로의 거리와 예상 시간" aria-live="polite">
+              {!currentRoute && <p className="station-status">두 경로를 조회하는 중입니다.</p>}
+              {currentRoute?.error && <p className="route-error">{bicycleErrorMessage(currentRoute.error)}</p>}
+              {currentRoute?.results && <div className="route-number-grid">
+                {currentRoute.results.map((result) => (
+                  <div className={`route-number-card ${result.mode}`} key={result.mode}>
+                    <h3><i className={`route-line ${result.mode}`} />{bicycleStyles[result.mode].label}</h3>
+                    {"error" in result ? <p className="route-error">{bicycleErrorMessage(result.error)}</p> : <>
+                      <p className="route-number-distance"><strong>{routeDistance.format(result.distanceMeters / 1000)}</strong> km</p>
+                      <p className="route-number-time">예상 <strong>{minutes(result.durationSeconds)}분</strong></p>
+                    </>}
+                  </div>
+                ))}
+              </div>}
+              {distanceGap !== null && <p className="route-insight">
+                거리 차이 <strong>{distanceGap.toLocaleString("ko-KR")} m</strong>
+                {timeGap !== null && <> · 예상 시간 차이 <strong>{timeGap}분</strong></>}
+              </p>}
+            </div>}
             {routes.length > 0 && <div className="map-modes" role="group" aria-label="지도 경로 선택">
               <button type="button" className="quiet-button" aria-pressed={visibleMode === "all"} onClick={() => setMapMode("all")}>모든 경로</button>
               {routes.map(({ mode }) => <button key={mode} type="button" className="quiet-button" aria-pressed={visibleMode === mode}
@@ -221,15 +241,12 @@ export default function Home() {
                         <td>비교 불가</td>
                       </> : <>
                         <td><strong>{routeDistance.format(result.distanceMeters / 1000)} km</strong>
-                          <small>약 {Math.max(1, Math.ceil(result.durationSeconds / 60))}분</small></td>
+                          <small>약 {minutes(result.durationSeconds)}분</small></td>
                         <td>{!hotspotResult ? "집계 중" : !hotspotData?.hotspots.length || !matches ? "자료 없음" : <strong>{matches.length}곳</strong>}</td>
                       </>}
                     </tr>;
                   })}</tbody>
                 </table>}
-                {distanceGap !== null && shorterRoute && <p className="route-insight">
-                  {distanceGap === 0 ? "두 경로의 거리가 같습니다." : <>거리 차이 <strong>{formatDistance(distanceGap)}</strong> · {bicycleStyles[shorterRoute.mode].label} 쪽이 더 짧습니다.</>}
-                </p>}
               </> : <p className="station-status">출발지 주변 목록에서 따릉이 대여소를 선택하세요.</p>}
               <p className="comparison-note">
                 {hotspotData ? `${hotspotData.year}년 ` : ""}과거 집계에서 경로선과 다발지역 중심점이 {formatDistance(hotspotRadius)} 이내인 곳을 셉니다.

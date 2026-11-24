@@ -143,6 +143,14 @@ button[aria-pressed=true].quiet-button, .filters button[aria-pressed=true] { bac
 .route-comparison thead th, .route-comparison td small { color: var(--muted); font-size: 11px; }
 .route-comparison td small { display: block; }
 .route-error { color: var(--danger); font-size: 12px; }
+.route-numbers { padding: 0 15px 12px; }
+.route-number-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+.route-number-card { border: 1px solid var(--line); border-top: 2px solid #75d89f; border-radius: 9px; background: var(--surface); padding: 8px 10px; }
+.route-number-card.SHORTEST { border-top-color: #b9b0ff; }
+.route-number-card h3 { display: flex; align-items: center; gap: 6px; font-size: 12px; margin: 0; }
+.route-number-distance, .route-number-time { margin: 2px 0 0; color: var(--muted); font-size: 12px; font-variant-numeric: tabular-nums; }
+.route-number-distance strong { color: var(--text); font-size: clamp(24px, 4vw, 38px); letter-spacing: -.045em; line-height: 1.2; }
+.route-number-time strong { color: var(--text); }
 .route-insight { margin: 8px 0 0; color: #daedff; font-size: 12px; }
 .route-insight strong { color: var(--accent); }
 .comparison-note { margin: 8px 0 0; font-size: 11px; color: #e4d3bd; }
